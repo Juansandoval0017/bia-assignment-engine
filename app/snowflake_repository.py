@@ -254,10 +254,15 @@ class SnowflakeRepository:
             connection.commit()
 
     def save_decisions(self, run_id: int, assignments: list[Assignment]) -> None:
-        query = """
+        if not assignments:
+            return
+        value_placeholders = ", ".join("(%s, %s, %s, %s, %s, %s)" for _ in assignments)
+        query = f"""
         INSERT INTO assignment_decisions
             (run_id, registro_id, usuario_id, score, reasons, candidates)
-        SELECT %s, %s, %s, %s, PARSE_JSON(%s), PARSE_JSON(%s)
+        SELECT column1, column2, column3, column4,
+               PARSE_JSON(column5), PARSE_JSON(column6)
+        FROM VALUES {value_placeholders}
         """
         with self.client.connect() as connection:
             with connection.cursor() as cursor:
@@ -274,8 +279,8 @@ class SnowflakeRepository:
                     )
                     for assignment in assignments
                 ]
-                if rows:
-                    cursor.executemany(query, rows)
+                parameters = [value for row in rows for value in row]
+                cursor.execute(query, parameters)
             connection.commit()
 
     def save_legacy_confirmations(

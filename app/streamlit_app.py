@@ -182,6 +182,8 @@ def main() -> None:
     )
 
     if st.button("Previsualizar y preparar borrador", type="primary"):
+        if source == "Snowflake" and st.session_state.get("run_status") == "previewed":
+            repository.cancel_run(st.session_state["run_id"])
         assignments = preview_assignments(
             selected_leads,
             users,
