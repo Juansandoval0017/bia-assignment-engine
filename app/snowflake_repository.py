@@ -37,7 +37,7 @@ WITH latest_decisions AS (
     SELECT registro_id, usuario_id,
            ROW_NUMBER() OVER (
                PARTITION BY registro_id
-               ORDER BY created_at DESC, decision_id DESC
+               ORDER BY d.created_at DESC, d.decision_id DESC
            ) AS row_number
     FROM assignment_decisions d
     JOIN assignment_runs r ON r.run_id = d.run_id
