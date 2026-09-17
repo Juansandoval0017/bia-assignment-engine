@@ -93,3 +93,15 @@ def test_round_robin_method_distributes_sequentially():
     )
 
     assert [assignment.user_id for assignment in assignments] == [1, 2]
+
+
+def test_round_robin_has_no_misleading_score():
+    assignments = preview_assignments(
+        [make_lead()],
+        [make_user()],
+        [],
+        execution_date=date(2026, 9, 17),
+        method="round_robin",
+    )
+
+    assert assignments[0].score is None

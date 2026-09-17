@@ -107,7 +107,7 @@ def preview_assignments(
             else:
                 candidate = CandidateScore(
                     user_id=user.id,
-                    score=0.0,
+                    score=None,
                     reasons=["turno round-robin", f"capacidad disponible: {user.capacidad_maxima - load:.0f}"],
                 )
             candidates.append(candidate)

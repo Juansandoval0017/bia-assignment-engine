@@ -41,7 +41,7 @@ class Absence(BaseModel):
 
 class CandidateScore(BaseModel):
     user_id: int
-    score: float
+    score: float | None
     reasons: list[str]
 
 
