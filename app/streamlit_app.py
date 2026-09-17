@@ -82,6 +82,7 @@ def main() -> None:
             repository = SnowflakeRepository()
             repository.expire_runs()
             operational_data = repository.load_operational_data()
+            legacy_reviews = repository.load_legacy_review()
             users, all_leads, absences = (
                 operational_data.users,
                 operational_data.leads,
@@ -91,12 +92,42 @@ def main() -> None:
         else:
             users, all_leads, absences = load_demo_data()
             current_load = {}
+            legacy_reviews = []
     except Exception as error:
         st.error(f"No fue posible cargar la fuente seleccionada: {error}")
         st.stop()
 
     pending_leads = [lead for lead in all_leads if lead.estado == "nuevo"]
     sellers = {user.id: user for user in users if user.rol.casefold() == "vendedor"}
+
+    if source == "Snowflake" and legacy_reviews:
+        st.subheader("Conciliación histórica")
+        st.caption(
+            "Estas asignaciones son provisionales: actividad histórica no equivale "
+            "automáticamente a propietario actual."
+        )
+        review_rows = [
+            {
+                "Registro": review.registro_id,
+                "Empresa": review.razon_social,
+                "Estado": review.estado,
+                "Usuario histórico": review.inferred_user_id,
+                "Actividades": review.activity_count,
+                "Clasificación": review.classification,
+            }
+            for review in legacy_reviews
+        ]
+        st.dataframe(pd.DataFrame(review_rows), use_container_width=True, hide_index=True)
+        confirmed_ids = st.multiselect(
+            "Registros históricos a confirmar",
+            options=[review.registro_id for review in legacy_reviews],
+            default=[],
+        )
+        if st.button("Confirmar históricos seleccionados"):
+            run_id, count = repository.save_legacy_confirmations(
+                legacy_reviews, confirmed_ids, executed_by
+            )
+            st.success(f"Migración histórica #{run_id}: {count} registros confirmados.")
     selected_ids = st.multiselect(
         "Registros a previsualizar",
         options=[lead.id for lead in pending_leads],

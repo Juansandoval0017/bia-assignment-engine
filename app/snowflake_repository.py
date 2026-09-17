@@ -38,6 +38,13 @@ SELECT r.id AS registro_id, r.razon_social, r.estado,
 FROM registros r
 LEFT JOIN actividad a ON a.registro_id = r.id
 WHERE LOWER(r.estado) IN ('asignado', 'en_gestion')
+  AND NOT EXISTS (
+      SELECT 1
+      FROM assignment_decisions ad
+      JOIN assignment_runs ar ON ar.run_id = ad.run_id
+      WHERE ad.registro_id = r.id
+        AND ar.status = 'executed'
+  )
 ORDER BY r.id, a.fecha DESC, a.id DESC
 """
 
@@ -269,3 +276,34 @@ class SnowflakeRepository:
                         ),
                     )
             connection.commit()
+
+    def save_legacy_confirmations(
+        self,
+        reviews: list[LegacyReview],
+        confirmed_ids: list[int],
+        executed_by: str,
+    ) -> tuple[int, int]:
+        selected = [review for review in reviews if review.registro_id in confirmed_ids]
+        assignments = [
+            Assignment(
+                lead_id=review.registro_id,
+                user_id=review.inferred_user_id,
+                score=None,
+                reasons=[
+                    "asignación histórica confirmada manualmente",
+                    review.reason,
+                ],
+                candidates=[],
+            )
+            for review in selected
+            if review.inferred_user_id is not None
+        ]
+        run_id = self.create_run(
+            method="legacy_reconciliation",
+            parameters={"source": "activity", "confirmed_count": len(assignments)},
+            executed_by=executed_by,
+            execution_date=date.today(),
+            status="executed",
+        )
+        self.save_decisions(run_id, assignments)
+        return run_id, len(assignments)
