@@ -1,0 +1,17 @@
+[project]
+name = "bia-assignment-engine"
+version = "0.1.0"
+description = "Motor de asignacion comercial para la prueba tecnica de Bia"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.7,<3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0,<9",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
