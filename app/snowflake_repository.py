@@ -39,7 +39,9 @@ WITH latest_decisions AS (
                PARTITION BY registro_id
                ORDER BY created_at DESC, decision_id DESC
            ) AS row_number
-    FROM assignment_decisions
+    FROM assignment_decisions d
+    JOIN assignment_runs r ON r.run_id = d.run_id
+    WHERE r.status = 'executed'
 )
 SELECT usuario_id, COUNT(*) AS load
 FROM latest_decisions
