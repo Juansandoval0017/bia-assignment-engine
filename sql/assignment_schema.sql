@@ -5,6 +5,9 @@ CREATE TABLE IF NOT EXISTS assignment_runs (
     executed_by VARCHAR(255) NOT NULL,
     execution_date DATE NOT NULL,
     status VARCHAR(30) NOT NULL,
+    approved_by VARCHAR(255),
+    approved_at TIMESTAMP_NTZ,
+    expires_at TIMESTAMP_NTZ NOT NULL,
     created_at TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
 );
 

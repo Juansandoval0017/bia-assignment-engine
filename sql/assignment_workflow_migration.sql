@@ -1,0 +1,3 @@
+ALTER TABLE assignment_runs ADD COLUMN IF NOT EXISTS approved_by VARCHAR(255);
+ALTER TABLE assignment_runs ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP_NTZ;
+ALTER TABLE assignment_runs ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP_NTZ;

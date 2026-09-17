@@ -1,6 +1,6 @@
 import json
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from .models import Absence, Assignment, Lead, User
@@ -86,13 +86,15 @@ class SnowflakeRepository:
         executed_by: str,
         execution_date: date,
         status: str = "previewed",
+        expires_in_hours: int = 24,
     ) -> int:
         query = """
         INSERT INTO assignment_runs
-            (method, parameters, executed_by, execution_date, status)
-        SELECT %s, PARSE_JSON(%s), %s, %s, %s
+            (method, parameters, executed_by, execution_date, status, expires_at)
+        SELECT %s, PARSE_JSON(%s), %s, %s, %s, %s
         RETURNING run_id
         """
+        expires_at = datetime.now() + timedelta(hours=expires_in_hours)
         with self.client.connect() as connection:
             with connection.cursor() as cursor:
                 cursor.execute(
@@ -103,20 +105,72 @@ class SnowflakeRepository:
                         executed_by,
                         execution_date,
                         status,
+                        expires_at,
                     ),
                 )
                 run_id = cursor.fetchone()[0]
             connection.commit()
+        return int(run_id)
+
+    def approve_run(self, run_id: int, approved_by: str) -> None:
+        query = """
+        UPDATE assignment_runs
+        SET status = 'approved', approved_by = %s, approved_at = CURRENT_TIMESTAMP()
+        WHERE run_id = %s
+          AND status = 'previewed'
+          AND expires_at > CURRENT_TIMESTAMP()
+        """
+        with self.client.connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(query, (approved_by, run_id))
+                if cursor.rowcount != 1:
+                    raise ValueError("La corrida no existe, expiró o ya fue procesada")
+            connection.commit()
+
+    def cancel_run(self, run_id: int) -> None:
+        with self.client.connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    UPDATE assignment_runs
+                    SET status = 'cancelled'
+                    WHERE run_id = %s AND status = 'previewed'
+                    """,
+                    (run_id,),
+                )
+                if cursor.rowcount != 1:
+                    raise ValueError("La corrida no existe o ya fue procesada")
+            connection.commit()
+
+    def expire_runs(self) -> int:
+        with self.client.connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    UPDATE assignment_runs
+                    SET status = 'expired'
+                    WHERE status = 'previewed'
+                      AND expires_at <= CURRENT_TIMESTAMP()
+                    """
+                )
+                expired_count = cursor.rowcount
+            connection.commit()
+        return expired_count
 
     def mark_run_executed(self, run_id: int) -> None:
         with self.client.connect() as connection:
             with connection.cursor() as cursor:
                 cursor.execute(
-                    "UPDATE assignment_runs SET status = %s WHERE run_id = %s",
-                    ("executed", run_id),
+                    """
+                    UPDATE assignment_runs
+                    SET status = 'executed'
+                    WHERE run_id = %s AND status = 'approved'
+                    """,
+                    (run_id,),
                 )
+                if cursor.rowcount != 1:
+                    raise ValueError("La corrida debe estar aprobada antes de ejecutarse")
             connection.commit()
-        return int(run_id)
 
     def save_decisions(self, run_id: int, assignments: list[Assignment]) -> None:
         query = """

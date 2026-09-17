@@ -22,6 +22,15 @@ class SnowflakeExecutionRequest(PreviewRequest):
     parameters: dict[str, object] = Field(default_factory=dict)
 
 
+class ApprovalRequest(BaseModel):
+    run_id: int
+    approved_by: str
+
+
+class ExecutionRequest(BaseModel):
+    run_id: int
+
+
 app = FastAPI(
     title="Bia Assignment Engine",
     version="0.1.0",
@@ -98,8 +107,8 @@ def preview_snowflake(request: PreviewRequest) -> list[Assignment]:
     )
 
 
-@app.post("/execute-snowflake")
-def execute_snowflake(request: SnowflakeExecutionRequest) -> dict[str, object]:
+@app.post("/prepare-snowflake")
+def prepare_snowflake(request: SnowflakeExecutionRequest) -> dict[str, object]:
     repository = SnowflakeRepository()
     data = repository.load_operational_data()
     assignments = preview_assignments(
@@ -114,12 +123,24 @@ def execute_snowflake(request: SnowflakeExecutionRequest) -> dict[str, object]:
         parameters=request.parameters,
         executed_by=request.executed_by,
         execution_date=request.execution_date,
-        status="previewed",
     )
     repository.save_decisions(run_id, assignments)
-    repository.mark_run_executed(run_id)
     return {
         "run_id": run_id,
-        "status": "executed",
+        "status": "previewed",
         "decisions": len(assignments),
+        "expires_in_hours": 24,
+        "assignments": assignments,
     }
+
+
+@app.post("/approve-snowflake")
+def approve_snowflake(request: ApprovalRequest) -> dict[str, object]:
+    SnowflakeRepository().approve_run(request.run_id, request.approved_by)
+    return {"run_id": request.run_id, "status": "approved"}
+
+
+@app.post("/execute-snowflake")
+def execute_snowflake(request: ExecutionRequest) -> dict[str, object]:
+    SnowflakeRepository().mark_run_executed(request.run_id)
+    return {"run_id": request.run_id, "status": "executed"}
