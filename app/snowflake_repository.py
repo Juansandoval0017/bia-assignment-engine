@@ -261,20 +261,21 @@ class SnowflakeRepository:
         """
         with self.client.connect() as connection:
             with connection.cursor() as cursor:
-                for assignment in assignments:
-                    cursor.execute(
-                        query,
-                        (
-                            run_id,
-                            assignment.lead_id,
-                            assignment.user_id,
-                            assignment.score,
-                            json.dumps(assignment.reasons),
-                            json.dumps(
-                                [candidate.model_dump() for candidate in assignment.candidates]
-                            ),
+                rows = [
+                    (
+                        run_id,
+                        assignment.lead_id,
+                        assignment.user_id,
+                        assignment.score,
+                        json.dumps(assignment.reasons),
+                        json.dumps(
+                            [candidate.model_dump() for candidate in assignment.candidates]
                         ),
                     )
+                    for assignment in assignments
+                ]
+                if rows:
+                    cursor.executemany(query, rows)
             connection.commit()
 
     def save_legacy_confirmations(
