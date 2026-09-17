@@ -94,7 +94,6 @@ class SnowflakeRepository:
         INSERT INTO assignment_runs
             (method, parameters, executed_by, execution_date, status, expires_at)
         SELECT %s, PARSE_JSON(%s), %s, %s, %s, %s
-        RETURNING run_id
         """
         expires_at = datetime.now() + timedelta(hours=expires_in_hours)
         with self.client.connect() as connection:
@@ -109,6 +108,19 @@ class SnowflakeRepository:
                         status,
                         expires_at,
                     ),
+                )
+                cursor.execute(
+                    """
+                    SELECT run_id
+                    FROM assignment_runs
+                    WHERE method = %s
+                      AND executed_by = %s
+                      AND execution_date = %s
+                      AND status = %s
+                    ORDER BY created_at DESC, run_id DESC
+                    LIMIT 1
+                    """,
+                    (method, executed_by, execution_date, status),
                 )
                 run_id = cursor.fetchone()[0]
             connection.commit()
