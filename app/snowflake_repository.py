@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Any
 
-from .models import Absence, Assignment, Lead, User
+from .models import Absence, Assignment, Lead, LegacyReview, User
 from .snowflake_client import SnowflakeClient
 
 
@@ -30,6 +30,15 @@ FROM registros
 ABSENCES_QUERY = """
 SELECT usuario_id, desde, hasta
 FROM ausencias
+"""
+
+LEGACY_ACTIVITY_QUERY = """
+SELECT r.id AS registro_id, r.razon_social, r.estado,
+       a.usuario_id, a.fecha, a.id AS actividad_id
+FROM registros r
+LEFT JOIN actividad a ON a.registro_id = r.id
+WHERE LOWER(r.estado) IN ('asignado', 'en_gestion')
+ORDER BY r.id, a.fecha DESC, a.id DESC
 """
 
 CURRENT_LOAD_QUERY = """
@@ -80,6 +89,57 @@ class SnowflakeRepository:
             for row in load_rows
         }
         return OperationalData(users, leads, absences, current_load)
+
+    def load_legacy_review(self) -> list[LegacyReview]:
+        with self.client.connect() as connection:
+            with connection.cursor() as cursor:
+                rows = self._fetch(cursor, LEGACY_ACTIVITY_QUERY)
+
+        grouped: dict[int, dict[str, Any]] = {}
+        for row in rows:
+            record = grouped.setdefault(
+                row["registro_id"],
+                {
+                    "registro_id": row["registro_id"],
+                    "razon_social": row["razon_social"],
+                    "estado": row["estado"],
+                    "historical_user_ids": set(),
+                    "activity_count": 0,
+                    "latest_activity": None,
+                },
+            )
+            if row["usuario_id"] is not None:
+                record["historical_user_ids"].add(int(row["usuario_id"]))
+                record["activity_count"] += 1
+                if record["latest_activity"] is None:
+                    record["latest_activity"] = row["fecha"]
+
+        reviews = []
+        for record in grouped.values():
+            user_ids = sorted(record["historical_user_ids"])
+            record["historical_user_ids"] = user_ids
+            if not user_ids:
+                classification = "needs_review"
+                reason = "sin actividad con usuario asociado"
+                inferred_user_id = None
+            elif len(user_ids) == 1:
+                classification = "provisional"
+                reason = "un solo usuario histórico; requiere confirmación"
+                inferred_user_id = user_ids[0]
+            else:
+                classification = "needs_review"
+                reason = "múltiples usuarios históricos"
+                inferred_user_id = None
+
+            reviews.append(
+                LegacyReview(
+                    **record,
+                    classification=classification,
+                    reason=reason,
+                    inferred_user_id=inferred_user_id,
+                )
+            )
+        return reviews
 
     def create_run(
         self,

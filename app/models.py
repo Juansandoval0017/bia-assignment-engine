@@ -51,3 +51,15 @@ class Assignment(BaseModel):
     score: float | None
     reasons: list[str]
     candidates: list[CandidateScore]
+
+
+class LegacyReview(BaseModel):
+    registro_id: int
+    razon_social: str
+    estado: str
+    inferred_user_id: int | None
+    historical_user_ids: list[int]
+    activity_count: int
+    latest_activity: date | None
+    classification: str
+    reason: str
