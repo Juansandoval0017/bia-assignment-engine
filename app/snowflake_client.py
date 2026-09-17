@@ -3,6 +3,8 @@ from os import environ
 from pathlib import Path
 from typing import Any
 
+from dotenv import load_dotenv
+
 
 class SnowflakeConfigurationError(RuntimeError):
     """La configuración requerida para conectarse no está completa."""
@@ -20,6 +22,7 @@ class SnowflakeConfig:
 
     @classmethod
     def from_environment(cls) -> "SnowflakeConfig":
+        load_dotenv()
         required = {
             "account": environ.get("SNOWFLAKE_ACCOUNT"),
             "user": environ.get("SNOWFLAKE_USER"),
