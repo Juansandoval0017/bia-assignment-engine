@@ -175,7 +175,17 @@ def main() -> None:
             repository.cancel_run(st.session_state["run_id"])
         for key in ("assignments", "run_id", "run_status", "preview_context"):
             st.session_state.pop(key, None)
-        st.warning("La configuración cambió. Debes generar una nueva previsualización.")
+        st.session_state["assignments"] = preview_assignments(
+            selected_leads,
+            users,
+            absences,
+            current_load,
+            execution_date,
+            method,
+            weights,
+        )
+        st.session_state["preview_context"] = preview_context
+        st.info("Previsualización actualizada. Revisa el resultado antes de preparar el borrador.")
 
     st.subheader("Registros pendientes")
     st.dataframe(
