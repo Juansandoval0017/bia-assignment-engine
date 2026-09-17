@@ -68,3 +68,28 @@ def test_does_not_assign_user_without_capacity():
     )
 
     assert assignments[0].user_id is None
+
+
+def test_balanced_method_prefers_lower_utilization():
+    assignments = preview_assignments(
+        [make_lead()],
+        [make_user(), make_user(id=2, capacidad_maxima=10)],
+        [],
+        current_load={1: 8, 2: 1},
+        execution_date=date(2026, 9, 17),
+        method="balanced",
+    )
+
+    assert assignments[0].user_id == 2
+
+
+def test_round_robin_method_distributes_sequentially():
+    assignments = preview_assignments(
+        [make_lead(id=1), make_lead(id=2)],
+        [make_user(id=1), make_user(id=2, zona="Costa")],
+        [],
+        execution_date=date(2026, 9, 17),
+        method="round_robin",
+    )
+
+    assert [assignment.user_id for assignment in assignments] == [1, 2]

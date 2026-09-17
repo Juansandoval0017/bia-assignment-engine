@@ -14,6 +14,15 @@ class PreviewRequest(BaseModel):
     execution_date: date = Field(default_factory=date.today)
     current_load: dict[int, int] = Field(default_factory=dict)
     lead_ids: list[int] | None = None
+    method: str = "weighted_score"
+    weights: dict[str, float] = Field(
+        default_factory=lambda: {
+            "zone": 0.35,
+            "segment": 0.25,
+            "capacity": 0.25,
+            "balance": 0.15,
+        }
+    )
 
 
 class SnowflakeExecutionRequest(PreviewRequest):
@@ -82,6 +91,8 @@ def preview(request: PreviewRequest) -> list[Assignment]:
         absences=absences,
         current_load=request.current_load,
         execution_date=request.execution_date,
+        method=request.method,
+        weights=request.weights,
     )
 
 
@@ -104,6 +115,8 @@ def preview_snowflake(request: PreviewRequest) -> list[Assignment]:
         absences=data.absences,
         current_load=request.current_load or data.current_load,
         execution_date=request.execution_date,
+        method=request.method,
+        weights=request.weights,
     )
 
 
@@ -117,10 +130,12 @@ def prepare_snowflake(request: SnowflakeExecutionRequest) -> dict[str, object]:
         absences=data.absences,
         current_load=request.current_load or data.current_load,
         execution_date=request.execution_date,
+        method=request.method,
+        weights=request.weights,
     )
     run_id = repository.create_run(
         method=request.method,
-        parameters=request.parameters,
+        parameters={**request.parameters, "weights": request.weights},
         executed_by=request.executed_by,
         execution_date=request.execution_date,
     )

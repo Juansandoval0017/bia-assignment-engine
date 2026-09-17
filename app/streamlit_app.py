@@ -78,6 +78,23 @@ def main() -> None:
         execution_date = st.date_input("Fecha de ejecución", value=date.today())
         executed_by = st.text_input("Usuario operador", value="demo.operator")
         approved_by = st.text_input("Usuario aprobador", value=executed_by)
+        method = st.selectbox(
+            "Método de asignación",
+            options=["weighted_score", "balanced", "round_robin"],
+            format_func=lambda value: {
+                "weighted_score": "Puntaje ponderado",
+                "balanced": "Balanceado por carga",
+                "round_robin": "Round-robin con capacidad",
+            }[value],
+        )
+        weights = {
+            "zone": st.number_input("Peso zona", 0.0, 1.0, 0.35, 0.05),
+            "segment": st.number_input("Peso segmento", 0.0, 1.0, 0.25, 0.05),
+            "capacity": st.number_input("Peso capacidad", 0.0, 1.0, 0.25, 0.05),
+            "balance": st.number_input("Peso balance", 0.0, 1.0, 0.15, 0.05),
+        }
+        if method == "weighted_score":
+            st.caption(f"Suma de pesos: {sum(weights.values()):.2f}")
 
     repository = None
     try:
@@ -163,13 +180,19 @@ def main() -> None:
 
     if st.button("Previsualizar y preparar borrador", type="primary"):
         assignments = preview_assignments(
-            selected_leads, users, absences, current_load, execution_date
+            selected_leads,
+            users,
+            absences,
+            current_load,
+            execution_date,
+            method,
+            weights,
         )
         st.session_state["assignments"] = assignments
         if source == "Snowflake":
             run_id = repository.create_run(
-                method="weighted_score",
-                parameters={"version": "0.1.0"},
+                method=method,
+                parameters={"version": "0.1.0", "weights": weights},
                 executed_by=executed_by,
                 execution_date=execution_date,
             )

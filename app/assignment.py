@@ -24,6 +24,7 @@ def _candidate_score(
     lead: Lead,
     user: User,
     current_load: int,
+    weights: dict[str, float],
 ) -> CandidateScore:
     zone_match = bool(
         normalize_value(lead.zona)
@@ -39,10 +40,10 @@ def _candidate_score(
     )
 
     score = (
-        (0.35 if zone_match else 0.0)
-        + (0.25 if segment_match else 0.0)
-        + (0.25 * capacity_ratio)
-        + (0.15 * (1 - current_load / user.capacidad_maxima))
+        (weights["zone"] if zone_match else 0.0)
+        + (weights["segment"] if segment_match else 0.0)
+        + (weights["capacity"] * capacity_ratio)
+        + (weights["balance"] * (1 - current_load / user.capacidad_maxima))
     )
     reasons = [
         "zona compatible" if zone_match else "zona no compatible o desconocida",
@@ -60,11 +61,21 @@ def preview_assignments(
     absences: list[Absence],
     current_load: dict[int, int] | None = None,
     execution_date: date | None = None,
+    method: str = "weighted_score",
+    weights: dict[str, float] | None = None,
 ) -> list[Assignment]:
     """Previsualiza asignaciones sin escribir en la base de datos."""
+    if method not in {"weighted_score", "balanced", "round_robin"}:
+        raise ValueError(f"Método de asignación no soportado: {method}")
+    weights = weights or {"zone": 0.35, "segment": 0.25, "capacity": 0.25, "balance": 0.15}
+    if set(weights) != {"zone", "segment", "capacity", "balance"}:
+        raise ValueError("Los pesos deben ser zone, segment, capacity y balance")
+    if abs(sum(weights.values()) - 1.0) > 0.001:
+        raise ValueError("Los pesos deben sumar 1.0")
     projected_load = dict(current_load or {})
     execution_date = execution_date or date.today()
     assignments: list[Assignment] = []
+    round_robin_cursor = 0
 
     for lead in leads:
         if lead.estado != "nuevo":
@@ -81,10 +92,34 @@ def preview_assignments(
                 or _is_absent(user.id, execution_date, absences)
             ):
                 continue
-            candidates.append(_candidate_score(lead, user, load))
+            if method == "weighted_score":
+                candidate = _candidate_score(lead, user, load, weights)
+            elif method == "balanced":
+                utilization = load / user.capacidad_maxima
+                candidate = CandidateScore(
+                    user_id=user.id,
+                    score=round(1 - utilization, 4),
+                    reasons=[
+                        f"ocupación actual: {utilization:.0%}",
+                        f"capacidad disponible: {user.capacidad_maxima - load:.0f}",
+                    ],
+                )
+            else:
+                candidate = CandidateScore(
+                    user_id=user.id,
+                    score=0.0,
+                    reasons=["turno round-robin", f"capacidad disponible: {user.capacidad_maxima - load:.0f}"],
+                )
+            candidates.append(candidate)
 
-        candidates.sort(key=lambda candidate: (-candidate.score, candidate.user_id))
-        if not candidates:
+        if method == "round_robin" and candidates:
+            candidates.sort(key=lambda candidate: candidate.user_id)
+            winner = candidates[round_robin_cursor % len(candidates)]
+            round_robin_cursor += 1
+        else:
+            candidates.sort(key=lambda candidate: (-candidate.score, candidate.user_id))
+            winner = candidates[0] if candidates else None
+        if winner is None:
             assignments.append(
                 Assignment(
                     lead_id=lead.id,
@@ -96,7 +131,6 @@ def preview_assignments(
             )
             continue
 
-        winner = candidates[0]
         projected_load[winner.user_id] = projected_load.get(winner.user_id, 0) + 1
         assignments.append(
             Assignment(
