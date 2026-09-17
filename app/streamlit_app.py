@@ -162,6 +162,21 @@ def main() -> None:
         default=[lead.id for lead in pending_leads],
     )
     selected_leads = [lead for lead in pending_leads if lead.id in selected_ids]
+    preview_context = {
+        "source": source,
+        "execution_date": str(execution_date),
+        "selected_ids": tuple(selected_ids),
+        "method": method,
+        "weights": tuple(sorted(weights.items())),
+    }
+    previous_context = st.session_state.get("preview_context")
+    if st.session_state.get("assignments") and previous_context != preview_context:
+        if source == "Snowflake" and st.session_state.get("run_status") == "previewed":
+            repository.cancel_run(st.session_state["run_id"])
+        for key in ("assignments", "run_id", "run_status", "preview_context"):
+            st.session_state.pop(key, None)
+        st.warning("La configuración cambió. Debes generar una nueva previsualización.")
+
     st.subheader("Registros pendientes")
     st.dataframe(
         pd.DataFrame(
@@ -194,6 +209,7 @@ def main() -> None:
             weights,
         )
         st.session_state["assignments"] = assignments
+        st.session_state["preview_context"] = preview_context
         if source == "Snowflake":
             run_id = repository.create_run(
                 method=method,
