@@ -69,6 +69,9 @@ def main() -> None:
     st.set_page_config(page_title="Bia Assignment Engine", layout="wide")
     st.title("Motor de asignación comercial")
 
+    if message := st.session_state.pop("migration_message", None):
+        st.success(message)
+
     with st.sidebar:
         st.header("Configuración")
         source = st.radio("Fuente de datos", ["Snowflake", "CSV local"])
@@ -122,12 +125,17 @@ def main() -> None:
             "Registros históricos a confirmar",
             options=[review.registro_id for review in legacy_reviews],
             default=[],
+            key="legacy_confirmed_ids",
         )
         if st.button("Confirmar históricos seleccionados"):
             run_id, count = repository.save_legacy_confirmations(
                 legacy_reviews, confirmed_ids, executed_by
             )
-            st.success(f"Migración histórica #{run_id}: {count} registros confirmados.")
+            st.session_state.pop("legacy_confirmed_ids", None)
+            st.session_state["migration_message"] = (
+                f"Migración histórica #{run_id}: {count} registros confirmados."
+            )
+            st.rerun()
     selected_ids = st.multiselect(
         "Registros a previsualizar",
         options=[lead.id for lead in pending_leads],
