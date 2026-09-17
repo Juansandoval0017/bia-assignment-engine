@@ -87,14 +87,17 @@ def main() -> None:
                 "round_robin": "Round-robin con capacidad",
             }[value],
         )
-        weights = {
-            "zone": st.number_input("Peso zona", 0.0, 1.0, 0.35, 0.05),
-            "segment": st.number_input("Peso segmento", 0.0, 1.0, 0.25, 0.05),
-            "capacity": st.number_input("Peso capacidad", 0.0, 1.0, 0.25, 0.05),
-            "balance": st.number_input("Peso balance", 0.0, 1.0, 0.15, 0.05),
-        }
         if method == "weighted_score":
+            weights = {
+                "zone": st.number_input("Peso zona", 0.0, 1.0, 0.35, 0.05),
+                "segment": st.number_input("Peso segmento", 0.0, 1.0, 0.25, 0.05),
+                "capacity": st.number_input("Peso capacidad", 0.0, 1.0, 0.25, 0.05),
+                "balance": st.number_input("Peso balance", 0.0, 1.0, 0.15, 0.05),
+            }
             st.caption(f"Suma de pesos: {sum(weights.values()):.2f}")
+        else:
+            weights = {"zone": 0.35, "segment": 0.25, "capacity": 0.25, "balance": 0.15}
+            st.info("Este método no utiliza pesos configurables.")
 
     repository = None
     try:
