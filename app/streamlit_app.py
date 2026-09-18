@@ -92,6 +92,45 @@ def _analyze_with_groq(leads):
     )
 
 
+def _render_traceability(repository, all_leads) -> None:
+    st.subheader("Trazabilidad de asignaciones")
+    st.caption("Consulta por qué un registro terminó con un vendedor específico.")
+    trace_id = st.selectbox(
+        "Registro para consultar",
+        options=[lead.id for lead in all_leads],
+        key="trace_record_id",
+    )
+    if not st.button("Consultar y confirmar explicación", type="primary"):
+        return
+
+    trace = repository.load_trace(trace_id)
+    if trace is None:
+        st.warning("Este registro todavía no tiene una decisión auditada.")
+        return
+
+    st.success("Trazabilidad consultada y confirmada.")
+    st.write(
+        f"**Registro:** {trace['registro_id']}  |  "
+        f"**Vendedor:** {trace['usuario_id'] or 'Sin asignar'}  |  "
+        f"**Método:** {trace['method']}"
+    )
+    st.write(
+        f"**Ejecutó:** {trace['executed_by']}  |  "
+        f"**Estado:** {trace['status']}  |  "
+        f"**Puntaje:** {trace['score'] or 'N/A'}"
+    )
+    st.write("**Razones:**", "; ".join(trace["reasons"] or []))
+    st.dataframe(
+        pd.DataFrame(trace["candidates"] or []),
+        use_container_width=True,
+        hide_index=True,
+    )
+    if trace.get("prompt_text"):
+        with st.expander("Auditoría de Groq"):
+            st.code(trace["prompt_text"])
+            st.text(trace.get("response_text") or "")
+
+
 def main() -> None:
     st.set_page_config(page_title="Bia Assignment Engine", layout="wide")
     st.title("Motor de asignación comercial")
@@ -102,6 +141,7 @@ def main() -> None:
     with st.sidebar:
         st.header("Configuración")
         source = st.radio("Fuente de datos", ["Snowflake", "CSV local"])
+        view = st.radio("Vista", ["Asignación", "Trazabilidad"])
         execution_date = st.date_input("Fecha de ejecución", value=date.today())
         executed_by = st.text_input("Usuario operador", value="demo.operator")
         approved_by = st.text_input("Usuario aprobador", value=executed_by)
@@ -148,6 +188,13 @@ def main() -> None:
         st.error(f"No fue posible cargar la fuente seleccionada: {error}")
         st.stop()
 
+    if view == "Trazabilidad":
+        if source != "Snowflake":
+            st.info("La trazabilidad está disponible con fuente Snowflake.")
+            st.stop()
+        _render_traceability(repository, all_leads)
+        st.stop()
+
     pending_leads = [lead for lead in all_leads if lead.estado == "nuevo"]
     sellers = {user.id: user for user in users if user.rol.casefold() == "vendedor"}
 
@@ -184,41 +231,6 @@ def main() -> None:
                 f"Migración histórica #{run_id}: {count} registros confirmados."
             )
             st.rerun()
-
-    if source == "Snowflake":
-        st.divider()
-        st.subheader("Trazabilidad")
-        trace_id = st.selectbox(
-            "Registro para consultar",
-            options=[lead.id for lead in all_leads],
-            key="trace_record_id",
-        )
-        if st.button("Consultar y confirmar explicación", type="secondary"):
-            trace = repository.load_trace(trace_id)
-            if trace is None:
-                st.warning("Este registro todavía no tiene una decisión auditada.")
-            else:
-                st.success("Trazabilidad consultada y confirmada.")
-                st.write(
-                    f"**Registro:** {trace['registro_id']}  |  "
-                    f"**Vendedor:** {trace['usuario_id'] or 'Sin asignar'}  |  "
-                    f"**Método:** {trace['method']}"
-                )
-                st.write(
-                    f"**Ejecutó:** {trace['executed_by']}  |  "
-                    f"**Estado:** {trace['status']}  |  "
-                    f"**Puntaje:** {trace['score'] or 'N/A'}"
-                )
-                st.write("**Razones:**", "; ".join(trace["reasons"] or []))
-                st.dataframe(
-                    pd.DataFrame(trace["candidates"] or []),
-                    use_container_width=True,
-                    hide_index=True,
-                )
-                if trace.get("prompt_text"):
-                    with st.expander("Auditoría de Groq"):
-                        st.code(trace["prompt_text"])
-                        st.text(trace.get("response_text") or "")
 
     selected_ids = st.multiselect(
         "Registros a previsualizar",
