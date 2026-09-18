@@ -190,6 +190,11 @@ def main() -> None:
         default=[lead.id for lead in pending_leads],
     )
     selected_leads = [lead for lead in pending_leads if lead.id in selected_ids]
+    if method == "ai_assisted" and len(selected_leads) > 10:
+        st.warning(
+            "El modo AI permite máximo 10 registros por previsualización para "
+            "controlar tiempo y consumo de API."
+        )
     ai_signals = {}
     ai_prompts = []
     if method == "ai_assisted":
@@ -242,6 +247,9 @@ def main() -> None:
         if source == "Snowflake" and st.session_state.get("run_status") == "previewed":
             repository.cancel_run(st.session_state["run_id"])
         if method == "ai_assisted" and selected_leads:
+            if len(selected_leads) > 10:
+                st.error("Reduce la selección a máximo 10 registros antes de usar Groq.")
+                st.stop()
             with st.spinner("Analizando notas con Groq..."):
                 try:
                     ai_signals, ai_prompts = _analyze_with_groq(selected_leads)

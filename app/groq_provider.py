@@ -62,7 +62,7 @@ class GroqProvider:
             raise RuntimeError('Instala Groq con: pip install -e ".[groq]"') from error
 
         prompt = build_lead_prompt(lead)
-        client = Groq(api_key=self.api_key)
+        client = Groq(api_key=self.api_key, timeout=30.0, max_retries=1)
         response = client.chat.completions.create(
             model=self.model,
             temperature=0,
