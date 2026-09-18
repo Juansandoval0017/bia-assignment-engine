@@ -125,3 +125,29 @@ def test_ai_assisted_prioritizes_and_matches_ai_segment_signal():
 
     assert [assignment.lead_id for assignment in assignments] == [2, 1]
     assert assignments[0].user_id == 2
+
+
+def test_projected_capacity_is_updated_between_records():
+    assignments = preview_assignments(
+        [make_lead(id=1), make_lead(id=2)],
+        [make_user(id=1, capacidad_maxima=1), make_user(id=2, zona="Costa")],
+        [],
+        execution_date=date(2026, 9, 17),
+        method="balanced",
+    )
+
+    assert assignments[0].user_id == 1
+    assert assignments[1].user_id == 2
+
+
+def test_invalid_weights_are_rejected():
+    import pytest
+
+    with pytest.raises(ValueError, match="sumar 1.0"):
+        preview_assignments(
+            [make_lead()],
+            [make_user()],
+            [],
+            method="weighted_score",
+            weights={"zone": 1.0, "segment": 1.0, "capacity": 0.0, "balance": 0.0},
+        )
