@@ -96,10 +96,10 @@ def _render_traceability(repository, all_leads) -> None:
     st.subheader("Trazabilidad de asignaciones")
     st.caption("Consulta por qué un registro terminó con un vendedor específico.")
     leads_by_id = {lead.id: lead for lead in all_leads}
-    search_text = st.text_input("Buscar por empresa o ciudad", key="trace_search_input")
-    if st.button("Buscar", key="trace_search_button"):
-        st.session_state["trace_search"] = search_text.strip().casefold()
-    active_search = st.session_state.get("trace_search", "")
+    search_column, record_column = st.columns([1, 2])
+    with search_column:
+        search_text = st.text_input("Buscar empresa o ciudad", key="trace_search_input")
+    active_search = search_text.strip().casefold()
     matching_leads = [
         lead
         for lead in all_leads
@@ -110,12 +110,13 @@ def _render_traceability(repository, all_leads) -> None:
     if not matching_leads:
         st.warning("No encontramos registros con ese criterio.")
         return
-    trace_id = st.selectbox(
-        "Registro para consultar",
-        options=[lead.id for lead in matching_leads],
-        format_func=lambda lead_id: f"{lead_id} - {leads_by_id[lead_id].razon_social}",
-        key="trace_record_id",
-    )
+    with record_column:
+        trace_id = st.selectbox(
+            f"Registro para consultar ({len(matching_leads)} resultados)",
+            options=[lead.id for lead in matching_leads],
+            format_func=lambda lead_id: f"{lead_id} - {leads_by_id[lead_id].razon_social}",
+            key="trace_record_id",
+        )
     if not st.button("Consultar y confirmar explicación", type="primary"):
         return
 
