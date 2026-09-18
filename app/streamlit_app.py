@@ -6,6 +6,7 @@ import streamlit as st
 
 from app.assignment import preview_assignments
 from app.data_loader import load_absences, load_leads, load_users
+from app.groq_provider import GroqProvider
 from app.snowflake_repository import SnowflakeRepository
 
 
@@ -65,6 +66,27 @@ def _render_assignments(assignments, sellers) -> None:
     )
 
 
+def _analyze_with_groq(leads):
+    provider = GroqProvider()
+    cache = st.session_state.setdefault("ai_analysis", {})
+    for lead in leads:
+        if lead.id not in cache:
+            signals, prompt, response = provider.analyze_lead(lead)
+            cache[lead.id] = {
+                "signals": signals.model_dump(),
+                "prompt": prompt,
+                "response": response,
+                "model": provider.model,
+            }
+    return (
+        {lead_id: item["signals"] for lead_id, item in cache.items()},
+        [
+            {"lead_id": lead.id, **cache[lead.id]}
+            for lead in leads
+        ],
+    )
+
+
 def main() -> None:
     st.set_page_config(page_title="Bia Assignment Engine", layout="wide")
     st.title("Motor de asignación comercial")
@@ -80,11 +102,12 @@ def main() -> None:
         approved_by = st.text_input("Usuario aprobador", value=executed_by)
         method = st.selectbox(
             "Método de asignación",
-            options=["weighted_score", "balanced", "round_robin"],
+            options=["weighted_score", "balanced", "round_robin", "ai_assisted"],
             format_func=lambda value: {
                 "weighted_score": "Puntaje ponderado",
                 "balanced": "Balanceado por carga",
                 "round_robin": "Round-robin con capacidad",
+                "ai_assisted": "AI asistido por Groq",
             }[value],
         )
         if method == "weighted_score":
@@ -162,6 +185,15 @@ def main() -> None:
         default=[lead.id for lead in pending_leads],
     )
     selected_leads = [lead for lead in pending_leads if lead.id in selected_ids]
+    ai_signals = {}
+    ai_prompts = []
+    if method == "ai_assisted" and selected_leads:
+        with st.spinner("Analizando notas con Groq..."):
+            try:
+                ai_signals, ai_prompts = _analyze_with_groq(selected_leads)
+            except Exception as error:
+                st.error(f"No fue posible analizar los registros con Groq: {error}")
+                st.stop()
     preview_context = {
         "source": source,
         "execution_date": str(execution_date),
@@ -183,6 +215,7 @@ def main() -> None:
             execution_date,
             method,
             weights,
+            ai_signals,
         )
         st.session_state["preview_context"] = preview_context
         st.info("Previsualización actualizada. Revisa el resultado antes de preparar el borrador.")
@@ -217,6 +250,7 @@ def main() -> None:
             execution_date,
             method,
             weights,
+            ai_signals,
         )
         st.session_state["assignments"] = assignments
         st.session_state["preview_context"] = preview_context
@@ -228,6 +262,7 @@ def main() -> None:
                 execution_date=execution_date,
             )
             repository.save_decisions(run_id, assignments)
+            repository.save_prompts(run_id, ai_prompts)
             st.session_state["run_id"] = run_id
             st.session_state["run_status"] = "previewed"
             st.success(f"Borrador #{run_id} creado. Expira en 24 horas.")

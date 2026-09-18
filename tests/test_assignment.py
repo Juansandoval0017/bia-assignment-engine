@@ -105,3 +105,23 @@ def test_round_robin_has_no_misleading_score():
     )
 
     assert assignments[0].score is None
+
+
+def test_ai_assisted_prioritizes_and_matches_ai_segment_signal():
+    assignments = preview_assignments(
+        [make_lead(id=1), make_lead(id=2, sector="Retail")],
+        [
+            make_user(id=1, segmento_experto="Alimentos y bebidas"),
+            make_user(id=2, segmento_experto="Retail"),
+        ],
+        [],
+        execution_date=date(2026, 9, 17),
+        method="ai_assisted",
+        ai_signals={
+            1: {"priority": 1, "likely_segment": "Alimentos y bebidas"},
+            2: {"priority": 5, "likely_segment": "Retail"},
+        },
+    )
+
+    assert [assignment.lead_id for assignment in assignments] == [2, 1]
+    assert assignments[0].user_id == 2

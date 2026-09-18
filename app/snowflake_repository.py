@@ -283,6 +283,33 @@ class SnowflakeRepository:
                 cursor.execute(query, parameters)
             connection.commit()
 
+    def save_prompts(self, run_id: int, prompts: list[dict[str, Any]]) -> None:
+        if not prompts:
+            return
+        placeholders = ", ".join("(%s, %s, %s, %s, %s, %s)" for _ in prompts)
+        query = f"""
+        INSERT INTO assignment_prompts
+            (run_id, registro_id, provider, model, prompt_text, response_text)
+        SELECT column1, column2, column3, column4, column5, column6
+        FROM VALUES {placeholders}
+        """
+        rows = [
+            (
+                run_id,
+                prompt["lead_id"],
+                "groq",
+                prompt["model"],
+                prompt["prompt"],
+                prompt["response"],
+            )
+            for prompt in prompts
+        ]
+        parameters = [value for row in rows for value in row]
+        with self.client.connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(query, parameters)
+            connection.commit()
+
     def save_legacy_confirmations(
         self,
         reviews: list[LegacyReview],

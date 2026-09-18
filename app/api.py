@@ -139,14 +139,31 @@ def preview_snowflake(request: PreviewRequest) -> list[Assignment]:
 def prepare_snowflake(request: SnowflakeExecutionRequest) -> dict[str, object]:
     repository = SnowflakeRepository()
     data = repository.load_operational_data()
+    selected_leads = _select_leads(data.leads, request.lead_ids)
+    ai_signals = {}
+    ai_prompts = []
+    if request.method == "ai_assisted":
+        provider = GroqProvider()
+        for lead in selected_leads:
+            signals, prompt, response = provider.analyze_lead(lead)
+            ai_signals[lead.id] = signals.model_dump()
+            ai_prompts.append(
+                {
+                    "lead_id": lead.id,
+                    "model": provider.model,
+                    "prompt": prompt,
+                    "response": response,
+                }
+            )
     assignments = preview_assignments(
-        leads=_select_leads(data.leads, request.lead_ids),
+        leads=selected_leads,
         users=data.users,
         absences=data.absences,
         current_load=request.current_load or data.current_load,
         execution_date=request.execution_date,
         method=request.method,
         weights=request.weights,
+        ai_signals=ai_signals,
     )
     run_id = repository.create_run(
         method=request.method,
@@ -155,6 +172,7 @@ def prepare_snowflake(request: SnowflakeExecutionRequest) -> dict[str, object]:
         execution_date=request.execution_date,
     )
     repository.save_decisions(run_id, assignments)
+    repository.save_prompts(run_id, ai_prompts)
     return {
         "run_id": run_id,
         "status": "previewed",

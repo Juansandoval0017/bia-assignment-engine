@@ -63,9 +63,10 @@ def preview_assignments(
     execution_date: date | None = None,
     method: str = "weighted_score",
     weights: dict[str, float] | None = None,
+    ai_signals: dict[int, dict] | None = None,
 ) -> list[Assignment]:
     """Previsualiza asignaciones sin escribir en la base de datos."""
-    if method not in {"weighted_score", "balanced", "round_robin"}:
+    if method not in {"weighted_score", "balanced", "round_robin", "ai_assisted"}:
         raise ValueError(f"Método de asignación no soportado: {method}")
     weights = weights or {"zone": 0.35, "segment": 0.25, "capacity": 0.25, "balance": 0.15}
     if set(weights) != {"zone", "segment", "capacity", "balance"}:
@@ -77,7 +78,13 @@ def preview_assignments(
     assignments: list[Assignment] = []
     round_robin_cursor = 0
 
-    for lead in leads:
+    ordered_leads = list(leads)
+    if method == "ai_assisted":
+        ordered_leads.sort(
+            key=lambda lead: -float((ai_signals or {}).get(lead.id, {}).get("priority", 0))
+        )
+
+    for lead in ordered_leads:
         if lead.estado != "nuevo":
             continue
 
@@ -92,8 +99,14 @@ def preview_assignments(
                 or _is_absent(user.id, execution_date, absences)
             ):
                 continue
-            if method == "weighted_score":
+            if method in {"weighted_score", "ai_assisted"}:
                 candidate = _candidate_score(lead, user, load, weights)
+                if method == "ai_assisted":
+                    signal = (ai_signals or {}).get(lead.id, {})
+                    likely_segment = normalize_value(signal.get("likely_segment"))
+                    if likely_segment and likely_segment == normalize_value(user.segmento_experto):
+                        candidate.score = round(candidate.score + 0.2, 4)
+                        candidate.reasons.append("segmento recomendado por AI")
             elif method == "balanced":
                 utilization = load / user.capacidad_maxima
                 candidate = CandidateScore(
