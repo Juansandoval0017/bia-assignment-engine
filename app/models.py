@@ -63,3 +63,19 @@ class LegacyReview(BaseModel):
     latest_activity: date | None
     classification: str
     reason: str
+
+
+class CurrentAssignment(BaseModel):
+    registro_id: int
+    usuario_id: int
+    razon_social: str
+    estado: str
+    ultima_actividad: date | None = None
+
+
+class ReassignmentProposal(BaseModel):
+    registro_id: int
+    razon_social: str
+    current_user_id: int
+    proposed_user_id: int | None
+    reasons: list[str]
