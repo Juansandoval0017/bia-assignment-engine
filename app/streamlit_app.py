@@ -95,9 +95,25 @@ def _analyze_with_groq(leads):
 def _render_traceability(repository, all_leads) -> None:
     st.subheader("Trazabilidad de asignaciones")
     st.caption("Consulta por qué un registro terminó con un vendedor específico.")
+    leads_by_id = {lead.id: lead for lead in all_leads}
+    search_text = st.text_input("Buscar por empresa o ciudad", key="trace_search_input")
+    if st.button("Buscar", key="trace_search_button"):
+        st.session_state["trace_search"] = search_text.strip().casefold()
+    active_search = st.session_state.get("trace_search", "")
+    matching_leads = [
+        lead
+        for lead in all_leads
+        if not active_search
+        or active_search in lead.razon_social.casefold()
+        or active_search in (lead.ciudad or "").casefold()
+    ]
+    if not matching_leads:
+        st.warning("No encontramos registros con ese criterio.")
+        return
     trace_id = st.selectbox(
         "Registro para consultar",
-        options=[lead.id for lead in all_leads],
+        options=[lead.id for lead in matching_leads],
+        format_func=lambda lead_id: f"{lead_id} - {leads_by_id[lead_id].razon_social}",
         key="trace_record_id",
     )
     if not st.button("Consultar y confirmar explicación", type="primary"):
