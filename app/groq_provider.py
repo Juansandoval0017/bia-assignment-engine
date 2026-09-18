@@ -51,7 +51,7 @@ class GroqProvider:
     def __init__(self, api_key: str | None = None, model: str | None = None):
         load_dotenv()
         self.api_key = api_key or environ.get("GROQ_API_KEY")
-        self.model = model or environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
+        self.model = model or environ.get("GROQ_MODEL", "openai/gpt-oss-20b")
         if not self.api_key:
             raise GroqConfigurationError("Falta la variable de entorno GROQ_API_KEY")
 
