@@ -56,6 +56,15 @@ uvicorn app.api:app --reload
 
 Documentacion API: `http://127.0.0.1:8000/docs`.
 
+## Despliegue en Streamlit Community Cloud
+
+1. Conecta el repositorio de GitHub.
+2. Selecciona `app/streamlit_app.py` como archivo principal.
+3. Configura los secretos del archivo `.env.example` en la sección Secrets.
+4. Comparte la URL generada.
+
+El repositorio no incluye datos originales ni credenciales. Streamlit ejecuta la consola y conecta directamente con Snowflake y Groq usando secretos.
+
 ## Metodos
 
 - `weighted_score`: zona, segmento, capacidad y balance con pesos configurables.
