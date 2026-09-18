@@ -48,6 +48,21 @@ WHERE LOWER(r.estado) IN ('asignado', 'en_gestion')
 ORDER BY r.id, a.fecha DESC, a.id DESC
 """
 
+TRACE_QUERY = """
+SELECT d.registro_id, d.usuario_id, d.score, d.reasons, d.candidates,
+       d.created_at AS decision_created_at,
+       r.run_id, r.method, r.parameters, r.executed_by,
+       r.execution_date, r.status, r.approved_by, r.approved_at,
+       p.provider, p.model, p.prompt_text, p.response_text
+FROM assignment_decisions d
+JOIN assignment_runs r ON r.run_id = d.run_id
+LEFT JOIN assignment_prompts p
+  ON p.run_id = d.run_id AND p.registro_id = d.registro_id
+WHERE d.registro_id = %s
+ORDER BY d.created_at DESC, d.decision_id DESC
+LIMIT 1
+"""
+
 CURRENT_LOAD_QUERY = """
 WITH latest_decisions AS (
     SELECT registro_id, usuario_id,
@@ -147,6 +162,23 @@ class SnowflakeRepository:
                 )
             )
         return reviews
+
+    def load_trace(self, registro_id: int) -> dict[str, Any] | None:
+        with self.client.connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(TRACE_QUERY, (registro_id,))
+                columns = [description[0] for description in cursor.description]
+                rows = [
+                    _lowercase_row(columns, row)
+                    for row in cursor.fetchall()
+                ]
+        if not rows:
+            return None
+        trace = rows[0]
+        for field in ("reasons", "candidates", "parameters"):
+            if isinstance(trace[field], str):
+                trace[field] = json.loads(trace[field])
+        return trace
 
     def create_run(
         self,

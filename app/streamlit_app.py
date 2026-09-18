@@ -184,6 +184,42 @@ def main() -> None:
                 f"Migración histórica #{run_id}: {count} registros confirmados."
             )
             st.rerun()
+
+    if source == "Snowflake":
+        st.divider()
+        st.subheader("Trazabilidad")
+        trace_id = st.selectbox(
+            "Registro para consultar",
+            options=[lead.id for lead in all_leads],
+            key="trace_record_id",
+        )
+        if st.button("Consultar y confirmar explicación", type="secondary"):
+            trace = repository.load_trace(trace_id)
+            if trace is None:
+                st.warning("Este registro todavía no tiene una decisión auditada.")
+            else:
+                st.success("Trazabilidad consultada y confirmada.")
+                st.write(
+                    f"**Registro:** {trace['registro_id']}  |  "
+                    f"**Vendedor:** {trace['usuario_id'] or 'Sin asignar'}  |  "
+                    f"**Método:** {trace['method']}"
+                )
+                st.write(
+                    f"**Ejecutó:** {trace['executed_by']}  |  "
+                    f"**Estado:** {trace['status']}  |  "
+                    f"**Puntaje:** {trace['score'] or 'N/A'}"
+                )
+                st.write("**Razones:**", "; ".join(trace["reasons"] or []))
+                st.dataframe(
+                    pd.DataFrame(trace["candidates"] or []),
+                    use_container_width=True,
+                    hide_index=True,
+                )
+                if trace.get("prompt_text"):
+                    with st.expander("Auditoría de Groq"):
+                        st.code(trace["prompt_text"])
+                        st.text(trace.get("response_text") or "")
+
     selected_ids = st.multiselect(
         "Registros a previsualizar",
         options=[lead.id for lead in pending_leads],
