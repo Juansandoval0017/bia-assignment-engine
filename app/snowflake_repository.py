@@ -3,7 +3,14 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Any
 
-from .models import Absence, Assignment, Lead, LegacyReview, User
+from .models import (
+    Absence,
+    Assignment,
+    CurrentAssignment,
+    Lead,
+    LegacyReview,
+    User,
+)
 from .snowflake_client import SnowflakeClient
 
 
@@ -63,6 +70,29 @@ ORDER BY d.created_at DESC, d.decision_id DESC
 LIMIT 1
 """
 
+CURRENT_ASSIGNMENTS_QUERY = """
+WITH latest_decisions AS (
+    SELECT d.registro_id, d.usuario_id,
+           ROW_NUMBER() OVER (
+               PARTITION BY d.registro_id
+               ORDER BY d.created_at DESC, d.decision_id DESC
+           ) AS row_number
+    FROM assignment_decisions d
+    JOIN assignment_runs r ON r.run_id = d.run_id
+    WHERE r.status = 'executed' AND d.usuario_id IS NOT NULL
+), latest_activity AS (
+    SELECT registro_id, MAX(fecha) AS ultima_actividad
+    FROM actividad
+    GROUP BY registro_id
+)
+SELECT d.registro_id, d.usuario_id, r.razon_social, r.estado,
+       a.ultima_actividad
+FROM latest_decisions d
+JOIN registros r ON r.id = d.registro_id
+LEFT JOIN latest_activity a ON a.registro_id = d.registro_id
+WHERE d.row_number = 1
+"""
+
 CURRENT_LOAD_QUERY = """
 WITH latest_decisions AS (
     SELECT registro_id, usuario_id,
@@ -111,6 +141,12 @@ class SnowflakeRepository:
             for row in load_rows
         }
         return OperationalData(users, leads, absences, current_load)
+
+    def load_current_assignments(self) -> list[CurrentAssignment]:
+        with self.client.connect() as connection:
+            with connection.cursor() as cursor:
+                rows = self._fetch(cursor, CURRENT_ASSIGNMENTS_QUERY)
+        return [CurrentAssignment.model_validate(row) for row in rows]
 
     def load_legacy_review(self) -> list[LegacyReview]:
         with self.client.connect() as connection:

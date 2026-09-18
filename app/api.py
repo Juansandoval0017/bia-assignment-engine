@@ -7,7 +7,8 @@ from pydantic import BaseModel, Field
 from .assignment import preview_assignments
 from .data_loader import load_absences, load_leads, load_users
 from .models import Assignment
-from .models import Lead
+from .models import Lead, ReassignmentProposal
+from .reassignment import preview_reassignments
 from .groq_provider import GroqProvider
 from .snowflake_repository import SnowflakeRepository
 
@@ -40,6 +41,12 @@ class ApprovalRequest(BaseModel):
 
 class ExecutionRequest(BaseModel):
     run_id: int
+
+
+class ReassignmentRequest(BaseModel):
+    execution_date: date = Field(default_factory=date.today)
+    overload_threshold: float = 0.8
+    recent_activity_days: int = 14
 
 
 app = FastAPI(
@@ -78,6 +85,25 @@ def _load_demo_data():
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.post("/preview-reassignments")
+def preview_reassignments_endpoint(
+    request: ReassignmentRequest,
+) -> list[ReassignmentProposal]:
+    repository = SnowflakeRepository()
+    data = repository.load_operational_data()
+    current_assignments = repository.load_current_assignments()
+    return preview_reassignments(
+        leads=data.leads,
+        users=data.users,
+        absences=data.absences,
+        current_assignments=current_assignments,
+        current_load=data.current_load,
+        execution_date=request.execution_date,
+        overload_threshold=request.overload_threshold,
+        recent_activity_days=request.recent_activity_days,
+    )
 
 
 @app.post("/analyze-lead")
