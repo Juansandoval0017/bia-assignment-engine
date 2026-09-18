@@ -81,7 +81,10 @@ def preview_assignments(
     ordered_leads = list(leads)
     if method == "ai_assisted":
         ordered_leads.sort(
-            key=lambda lead: -float((ai_signals or {}).get(lead.id, {}).get("priority", 0))
+            key=lambda lead: (
+                -float((ai_signals or {}).get(lead.id, {}).get("priority", 0)),
+                -float((ai_signals or {}).get(lead.id, {}).get("urgency", 0)),
+            )
         )
 
     for lead in ordered_leads:
@@ -104,9 +107,21 @@ def preview_assignments(
                 if method == "ai_assisted":
                     signal = (ai_signals or {}).get(lead.id, {})
                     likely_segment = normalize_value(signal.get("likely_segment"))
+                    candidate.reasons.extend(
+                        [
+                            f"prioridad AI: {signal.get('priority', 0)}/5",
+                            f"urgencia AI: {signal.get('urgency', 0)}/5",
+                        ]
+                    )
                     if likely_segment and likely_segment == normalize_value(user.segmento_experto):
                         candidate.score = round(candidate.score + 0.2, 4)
                         candidate.reasons.append("segmento recomendado por AI")
+                    if signal.get("requires_senior_contact"):
+                        candidate.reasons.append("AI recomienda contacto senior")
+                    if signal.get("alerts"):
+                        candidate.reasons.append(
+                            "alertas AI: " + ", ".join(signal["alerts"])
+                        )
             elif method == "balanced":
                 utilization = load / user.capacidad_maxima
                 candidate = CandidateScore(

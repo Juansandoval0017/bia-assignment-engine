@@ -22,7 +22,7 @@ def load_demo_data():
     )
 
 
-def _render_assignments(assignments, sellers) -> None:
+def _render_assignments(assignments, sellers, ai_signals=None) -> None:
     assignment_by_lead = {assignment.lead_id: assignment for assignment in assignments}
     rows = []
     for assignment in assignments:
@@ -33,6 +33,11 @@ def _render_assignments(assignments, sellers) -> None:
                 "Vendedor": seller.nombre if seller else "Sin asignar",
                 "Puntaje": assignment.score,
                 "Razón principal": assignment.reasons[0],
+                "Prioridad AI": (ai_signals or {}).get(assignment.lead_id, {}).get("priority"),
+                "Urgencia AI": (ai_signals or {}).get(assignment.lead_id, {}).get("urgency"),
+                "Alertas AI": "; ".join(
+                    (ai_signals or {}).get(assignment.lead_id, {}).get("alerts", [])
+                ),
             }
         )
 
@@ -270,7 +275,7 @@ def main() -> None:
     assignments = st.session_state.get("assignments")
     if not assignments:
         return
-    _render_assignments(assignments, sellers)
+    _render_assignments(assignments, sellers, ai_signals)
 
     if source != "Snowflake":
         st.info("El modo CSV permite probar, pero no persiste ejecuciones.")
