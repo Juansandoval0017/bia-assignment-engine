@@ -1,9 +1,8 @@
 from dataclasses import dataclass
-from os import environ
 from pathlib import Path
 from typing import Any
 
-from dotenv import load_dotenv
+from .settings import get_setting
 
 
 class SnowflakeConfigurationError(RuntimeError):
@@ -22,14 +21,13 @@ class SnowflakeConfig:
 
     @classmethod
     def from_environment(cls) -> "SnowflakeConfig":
-        load_dotenv()
         required = {
-            "account": environ.get("SNOWFLAKE_ACCOUNT"),
-            "user": environ.get("SNOWFLAKE_USER"),
-            "password": environ.get("SNOWFLAKE_PASSWORD"),
-            "warehouse": environ.get("SNOWFLAKE_WAREHOUSE"),
-            "database": environ.get("SNOWFLAKE_DATABASE"),
-            "schema": environ.get("SNOWFLAKE_SCHEMA"),
+            "account": get_setting("SNOWFLAKE_ACCOUNT"),
+            "user": get_setting("SNOWFLAKE_USER"),
+            "password": get_setting("SNOWFLAKE_PASSWORD"),
+            "warehouse": get_setting("SNOWFLAKE_WAREHOUSE"),
+            "database": get_setting("SNOWFLAKE_DATABASE"),
+            "schema": get_setting("SNOWFLAKE_SCHEMA"),
         }
         missing = [name for name, value in required.items() if not value]
         if missing:
@@ -37,7 +35,7 @@ class SnowflakeConfig:
             raise SnowflakeConfigurationError(
                 f"Faltan variables de entorno de Snowflake: {names}"
             )
-        return cls(**required, role=environ.get("SNOWFLAKE_ROLE") or None)
+        return cls(**required, role=get_setting("SNOWFLAKE_ROLE"))
 
 
 class SnowflakeClient:

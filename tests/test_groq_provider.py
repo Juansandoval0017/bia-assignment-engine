@@ -23,7 +23,7 @@ def test_build_lead_prompt_includes_auditable_lead_data():
 
 
 def test_groq_requires_api_key(monkeypatch):
-    monkeypatch.setattr("app.groq_provider.load_dotenv", lambda: None)
+    monkeypatch.setattr("app.settings.load_dotenv", lambda: None)
     monkeypatch.delenv("GROQ_API_KEY", raising=False)
 
     with pytest.raises(GroqConfigurationError):

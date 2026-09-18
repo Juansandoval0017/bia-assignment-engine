@@ -22,7 +22,7 @@ def test_snowflake_config_reads_environment(monkeypatch):
 
 
 def test_snowflake_config_reports_missing_variables(monkeypatch):
-    monkeypatch.setattr("app.snowflake_client.load_dotenv", lambda: None)
+    monkeypatch.setattr("app.settings.load_dotenv", lambda: None)
     monkeypatch.delenv("SNOWFLAKE_ACCOUNT", raising=False)
 
     with pytest.raises(SnowflakeConfigurationError, match="SNOWFLAKE_ACCOUNT"):

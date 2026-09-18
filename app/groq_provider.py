@@ -1,9 +1,8 @@
 import json
-from os import environ
-from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 
 from .models import Lead
+from .settings import get_setting
 
 
 class GroqConfigurationError(RuntimeError):
@@ -49,9 +48,8 @@ No inventes datos. Usa 0 cuando no haya evidencia suficiente."""
 
 class GroqProvider:
     def __init__(self, api_key: str | None = None, model: str | None = None):
-        load_dotenv()
-        self.api_key = api_key or environ.get("GROQ_API_KEY")
-        self.model = model or environ.get("GROQ_MODEL", "openai/gpt-oss-20b")
+        self.api_key = api_key or get_setting("GROQ_API_KEY")
+        self.model = model or get_setting("GROQ_MODEL", "openai/gpt-oss-20b")
         if not self.api_key:
             raise GroqConfigurationError("Falta la variable de entorno GROQ_API_KEY")
 
