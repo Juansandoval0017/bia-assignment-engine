@@ -7,6 +7,7 @@ import streamlit as st
 from app.assignment import preview_assignments
 from app.data_loader import load_absences, load_leads, load_users
 from app.groq_provider import GroqProvider
+from app.reassignment import preview_reassignments
 from app.snowflake_repository import SnowflakeRepository
 
 
@@ -140,6 +141,55 @@ def _render_traceability(repository, all_leads, users) -> None:
             st.text(trace.get("response_text") or "")
 
 
+def _render_reassignments(repository, operational_data, execution_date) -> None:
+    st.subheader("Previsualización de reasignaciones")
+    st.caption(
+        "Solo propone movimientos para vendedores sobrecargados. "
+        "No modifica asignaciones."
+    )
+    threshold = st.slider("Umbral de sobrecarga", 0.5, 1.0, 0.8, 0.05)
+    recent_days = st.number_input("Proteger actividad de los últimos días", 0, 90, 14)
+    if not st.button("Generar propuestas de reasignación", type="primary"):
+        return
+
+    proposals = preview_reassignments(
+        leads=operational_data.leads,
+        users=operational_data.users,
+        absences=operational_data.absences,
+        current_assignments=repository.load_current_assignments(),
+        current_load=operational_data.current_load,
+        execution_date=execution_date,
+        overload_threshold=threshold,
+        recent_activity_days=recent_days,
+    )
+    if not proposals:
+        st.info("No hay registros que requieran reasignación.")
+        return
+
+    names = {user.id: user.nombre for user in operational_data.users}
+    st.dataframe(
+        pd.DataFrame(
+            [
+                {
+                    "Registro": proposal.registro_id,
+                    "Empresa": proposal.razon_social,
+                    "Vendedor actual": f"{proposal.current_user_id} - {names.get(proposal.current_user_id, 'Desconocido')}",
+                    "Nuevo vendedor": (
+                        f"{proposal.proposed_user_id} - {names.get(proposal.proposed_user_id, 'Desconocido')}"
+                        if proposal.proposed_user_id
+                        else "Sin propuesta"
+                    ),
+                    "Razones": "; ".join(proposal.reasons),
+                }
+                for proposal in proposals
+            ]
+        ),
+        use_container_width=True,
+        hide_index=True,
+    )
+    st.info("La ejecución de reasignaciones se implementará después de revisar esta propuesta.")
+
+
 def main() -> None:
     st.set_page_config(page_title="Bia Assignment Engine", layout="wide")
     st.title("Motor de asignación comercial")
@@ -150,7 +200,7 @@ def main() -> None:
     with st.sidebar:
         st.header("Configuración")
         source = st.radio("Fuente de datos", ["Snowflake", "CSV local"])
-        view = st.radio("Vista", ["Asignación", "Trazabilidad"])
+        view = st.radio("Vista", ["Asignación", "Trazabilidad", "Reasignaciones"])
         execution_date = st.date_input("Fecha de ejecución", value=date.today())
         executed_by = st.text_input("Usuario operador", value="demo.operator")
         approved_by = st.text_input("Usuario aprobador", value=executed_by)
@@ -202,6 +252,12 @@ def main() -> None:
             st.info("La trazabilidad está disponible con fuente Snowflake.")
             st.stop()
         _render_traceability(repository, all_leads, users)
+        st.stop()
+    if view == "Reasignaciones":
+        if source != "Snowflake":
+            st.info("Las reasignaciones requieren fuente Snowflake.")
+            st.stop()
+        _render_reassignments(repository, operational_data, execution_date)
         st.stop()
 
     pending_leads = [lead for lead in all_leads if lead.estado == "nuevo"]
