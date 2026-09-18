@@ -192,13 +192,18 @@ def main() -> None:
     selected_leads = [lead for lead in pending_leads if lead.id in selected_ids]
     ai_signals = {}
     ai_prompts = []
-    if method == "ai_assisted" and selected_leads:
-        with st.spinner("Analizando notas con Groq..."):
-            try:
-                ai_signals, ai_prompts = _analyze_with_groq(selected_leads)
-            except Exception as error:
-                st.error(f"No fue posible analizar los registros con Groq: {error}")
-                st.stop()
+    if method == "ai_assisted":
+        cache = st.session_state.get("ai_analysis", {})
+        ai_signals = {
+            lead_id: item["signals"]
+            for lead_id, item in cache.items()
+            if lead_id in selected_ids
+        }
+        ai_prompts = [
+            {"lead_id": lead.id, **cache[lead.id]}
+            for lead in selected_leads
+            if lead.id in cache
+        ]
     preview_context = {
         "source": source,
         "execution_date": str(execution_date),
@@ -212,18 +217,7 @@ def main() -> None:
             repository.cancel_run(st.session_state["run_id"])
         for key in ("assignments", "run_id", "run_status", "preview_context"):
             st.session_state.pop(key, None)
-        st.session_state["assignments"] = preview_assignments(
-            selected_leads,
-            users,
-            absences,
-            current_load,
-            execution_date,
-            method,
-            weights,
-            ai_signals,
-        )
-        st.session_state["preview_context"] = preview_context
-        st.info("Previsualización actualizada. Revisa el resultado antes de preparar el borrador.")
+        st.warning("La configuración cambió. Pulsa el botón para generar una nueva previsualización.")
 
     st.subheader("Registros pendientes")
     st.dataframe(
@@ -247,6 +241,13 @@ def main() -> None:
     if st.button("Previsualizar y preparar borrador", type="primary"):
         if source == "Snowflake" and st.session_state.get("run_status") == "previewed":
             repository.cancel_run(st.session_state["run_id"])
+        if method == "ai_assisted" and selected_leads:
+            with st.spinner("Analizando notas con Groq..."):
+                try:
+                    ai_signals, ai_prompts = _analyze_with_groq(selected_leads)
+                except Exception as error:
+                    st.error(f"No fue posible analizar los registros con Groq: {error}")
+                    st.stop()
         assignments = preview_assignments(
             selected_leads,
             users,
