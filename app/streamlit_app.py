@@ -30,7 +30,7 @@ def _render_assignments(assignments, sellers, ai_signals=None) -> None:
         rows.append(
             {
                 "Registro": assignment.lead_id,
-                "Vendedor": seller.nombre if seller else "Sin asignar",
+                "Vendedor": f"{seller.id} - {seller.nombre}" if seller else "Sin asignar",
                 "Puntaje": assignment.score,
                 "Razón principal": assignment.reasons[0],
                 "Prioridad AI": (ai_signals or {}).get(assignment.lead_id, {}).get("priority"),
@@ -58,7 +58,7 @@ def _render_assignments(assignments, sellers, ai_signals=None) -> None:
         pd.DataFrame(
             [
                 {
-                    "Vendedor": sellers[candidate.user_id].nombre,
+                    "Vendedor": f"{candidate.user_id} - {sellers[candidate.user_id].nombre}",
                     "Puntaje": candidate.score,
                     "Razones": "; ".join(candidate.reasons),
                 }
@@ -92,10 +92,11 @@ def _analyze_with_groq(leads):
     )
 
 
-def _render_traceability(repository, all_leads) -> None:
+def _render_traceability(repository, all_leads, users) -> None:
     st.subheader("Trazabilidad de asignaciones")
     st.caption("Consulta por qué un registro terminó con un vendedor específico.")
     leads_by_id = {lead.id: lead for lead in all_leads}
+    users_by_id = {user.id: user for user in users}
     trace_id = st.selectbox(
         "Registro para consultar",
         options=[lead.id for lead in all_leads],
@@ -111,9 +112,15 @@ def _render_traceability(repository, all_leads) -> None:
         return
 
     st.success("Trazabilidad consultada y confirmada.")
+    seller = users_by_id.get(trace["usuario_id"])
+    seller_label = (
+        f"{seller.id} - {seller.nombre}"
+        if seller
+        else (str(trace["usuario_id"]) if trace["usuario_id"] else "Sin asignar")
+    )
     st.write(
         f"**Registro:** {trace['registro_id']}  |  "
-        f"**Vendedor:** {trace['usuario_id'] or 'Sin asignar'}  |  "
+        f"**Vendedor:** {seller_label}  |  "
         f"**Método:** {trace['method']}"
     )
     st.write(
@@ -194,7 +201,7 @@ def main() -> None:
         if source != "Snowflake":
             st.info("La trazabilidad está disponible con fuente Snowflake.")
             st.stop()
-        _render_traceability(repository, all_leads)
+        _render_traceability(repository, all_leads, users)
         st.stop()
 
     pending_leads = [lead for lead in all_leads if lead.estado == "nuevo"]
