@@ -7,6 +7,8 @@ from pydantic import BaseModel, Field
 from .assignment import preview_assignments
 from .data_loader import load_absences, load_leads, load_users
 from .models import Assignment
+from .models import Lead
+from .groq_provider import GroqProvider
 from .snowflake_repository import SnowflakeRepository
 
 
@@ -76,6 +78,19 @@ def _load_demo_data():
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.post("/analyze-lead")
+def analyze_lead(lead: Lead) -> dict[str, object]:
+    provider = GroqProvider()
+    signals, prompt, response = provider.analyze_lead(lead)
+    return {
+        "lead_id": lead.id,
+        "model": provider.model,
+        "signals": signals,
+        "prompt": prompt,
+        "response": response,
+    }
 
 
 @app.post("/preview", response_model=list[Assignment])
