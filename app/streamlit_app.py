@@ -196,6 +196,8 @@ def main() -> None:
 
     if message := st.session_state.pop("migration_message", None):
         st.success(message)
+    if message := st.session_state.pop("execution_message", None):
+        st.success(message)
 
     with st.sidebar:
         st.header("Configuración")
@@ -239,9 +241,11 @@ def main() -> None:
                 operational_data.absences,
             )
             current_load = operational_data.current_load
+            executed_record_ids = operational_data.executed_record_ids
         else:
             users, all_leads, absences = load_demo_data()
             current_load = {}
+            executed_record_ids = set()
             legacy_reviews = []
     except Exception as error:
         st.error(f"No fue posible cargar la fuente seleccionada: {error}")
@@ -260,7 +264,11 @@ def main() -> None:
         _render_reassignments(repository, operational_data, execution_date)
         st.stop()
 
-    pending_leads = [lead for lead in all_leads if lead.estado == "nuevo"]
+    pending_leads = [
+        lead
+        for lead in all_leads
+        if lead.estado == "nuevo" and lead.id not in executed_record_ids
+    ]
     sellers = {user.id: user for user in users if user.rol.casefold() == "vendedor"}
 
     if source == "Snowflake" and legacy_reviews:
@@ -419,7 +427,10 @@ def main() -> None:
         if st.button("Ejecutar asignación aprobada", type="primary"):
             repository.mark_run_executed(run_id)
             st.session_state["run_status"] = "executed"
-            st.success(f"Corrida #{run_id} ejecutada correctamente.")
+            st.session_state["execution_message"] = (
+                f"Corrida #{run_id} ejecutada correctamente. La vista fue actualizada."
+            )
+            st.rerun()
     elif status == "executed":
         st.success(f"Corrida #{run_id} ejecutada y auditada en Snowflake.")
 

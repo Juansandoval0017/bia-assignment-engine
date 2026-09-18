@@ -20,6 +20,7 @@ class OperationalData:
     leads: list[Lead]
     absences: list[Absence]
     current_load: dict[int, int]
+    executed_record_ids: set[int]
 
 
 USERS_QUERY = """
@@ -110,6 +111,14 @@ WHERE row_number = 1 AND usuario_id IS NOT NULL
 GROUP BY usuario_id
 """
 
+EXECUTED_RECORD_IDS_QUERY = """
+SELECT DISTINCT d.registro_id
+FROM assignment_decisions d
+JOIN assignment_runs r ON r.run_id = d.run_id
+WHERE r.status = 'executed'
+  AND d.usuario_id IS NOT NULL
+"""
+
 
 def _lowercase_row(columns: list[str], values: tuple[Any, ...]) -> dict[str, Any]:
     return dict(zip((column.lower() for column in columns), values))
@@ -135,12 +144,14 @@ class SnowflakeRepository:
                     for row in self._fetch(cursor, ABSENCES_QUERY)
                 ]
                 load_rows = self._fetch(cursor, CURRENT_LOAD_QUERY)
+                executed_rows = self._fetch(cursor, EXECUTED_RECORD_IDS_QUERY)
 
         current_load = {
             int(row["usuario_id"]): int(row["load"])
             for row in load_rows
         }
-        return OperationalData(users, leads, absences, current_load)
+        executed_record_ids = {int(row["registro_id"]) for row in executed_rows}
+        return OperationalData(users, leads, absences, current_load, executed_record_ids)
 
     def load_current_assignments(self) -> list[CurrentAssignment]:
         with self.client.connect() as connection:

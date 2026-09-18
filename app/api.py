@@ -137,13 +137,25 @@ def preview(request: PreviewRequest) -> list[Assignment]:
     )
 
 
-def _select_leads(leads, lead_ids: list[int] | None):
+def _select_leads(
+    leads,
+    lead_ids: list[int] | None,
+    executed_record_ids: set[int] | None = None,
+):
+    executed_record_ids = executed_record_ids or set()
     if lead_ids is None:
-        return [lead for lead in leads if lead.estado == "nuevo"]
+        return [
+            lead for lead in leads
+            if lead.estado == "nuevo" and lead.id not in executed_record_ids
+        ]
     selected_ids = set(lead_ids)
     return [
         lead for lead in leads
-        if lead.estado == "nuevo" and lead.id in selected_ids
+        if (
+            lead.estado == "nuevo"
+            and lead.id in selected_ids
+            and lead.id not in executed_record_ids
+        )
     ]
 
 
@@ -151,7 +163,7 @@ def _select_leads(leads, lead_ids: list[int] | None):
 def preview_snowflake(request: PreviewRequest) -> list[Assignment]:
     data = SnowflakeRepository().load_operational_data()
     return preview_assignments(
-        leads=_select_leads(data.leads, request.lead_ids),
+        leads=_select_leads(data.leads, request.lead_ids, data.executed_record_ids),
         users=data.users,
         absences=data.absences,
         current_load=request.current_load or data.current_load,
@@ -165,7 +177,9 @@ def preview_snowflake(request: PreviewRequest) -> list[Assignment]:
 def prepare_snowflake(request: SnowflakeExecutionRequest) -> dict[str, object]:
     repository = SnowflakeRepository()
     data = repository.load_operational_data()
-    selected_leads = _select_leads(data.leads, request.lead_ids)
+    selected_leads = _select_leads(
+        data.leads, request.lead_ids, data.executed_record_ids
+    )
     ai_signals = {}
     ai_prompts = []
     if request.method == "ai_assisted":
